@@ -46,7 +46,7 @@ const GEO_MAP = {
 export default {
   data() {
     return {
-      isHovered: true,
+      isHovered: false,
       timer: null,
       typeTimer: null,
       currentCityIndex: 0,
@@ -90,13 +90,10 @@ export default {
       }
       return { names: resultNames, values: resultValues, activeIndex: 0 }
     },
-    showCityTip() {
+    clearCityTip() {
       if (!this.chart) return
-      const win = this.getCityWindow()
-      if (!win.names.length) return
+      this.chart.dispatchAction({ type: "hideTip" })
       this.chart.dispatchAction({ type: "downplay", seriesIndex: 0 })
-      this.chart.dispatchAction({ type: "highlight", seriesIndex: 0, dataIndex: win.activeIndex })
-      this.chart.dispatchAction({ type: "showTip", seriesIndex: 0, dataIndex: win.activeIndex })
     },
     drawLeftTop() {
       const win = this.getCityWindow()
@@ -111,7 +108,7 @@ export default {
         yAxis: { type: "value", axisLine: { lineStyle: { color: "rgba(210,235,255,.75)" } }, splitLine: { lineStyle: { color: "rgba(210,235,255,.55)" } }, axisLabel: { color: "#d9edff", fontSize: 15, formatter: value => Number(value).toLocaleString() } },
         series: [{ name: "销售数据", data: win.values, type: "bar", barWidth: 42, itemStyle: { color: "#4f6fe0" }, emphasis: { itemStyle: { color: "#8fa8ff", shadowBlur: 18, shadowColor: "rgba(126,160,255,.75)" } }, label: { show: true, position: "inside", color: "#d8e1ff", fontSize: 14, formatter: p => Number(p.value || 0).toLocaleString() } }]
       }, true)
-      this.$nextTick(() => setTimeout(this.showCityTip, 80))
+      this.clearCityTip()
     },
     drawLeftBottom() {
       this.initChart("secondMain", "secondChart").setOption({
@@ -176,11 +173,11 @@ export default {
       this.drawLeftTop(); this.drawLeftBottom(); await this.drawCenterMap(); this.drawRightTop(); this.drawRightBottom()
     },
     updateBarChart() {
-      if (this.isHovered && this.chart && this.realData.cityList.length) {
+      if (!this.isHovered && this.chart && this.realData.cityList.length) {
         this.currentCityIndex = (this.currentCityIndex + 1) % this.realData.cityList.length
         const win = this.getCityWindow()
         this.chart.setOption({ xAxis: { data: win.names }, series: [{ data: win.values }] })
-        setTimeout(this.showCityTip, 80)
+        this.clearCityTip()
       }
     },
     startDataUpdataInterval() {
@@ -196,11 +193,11 @@ export default {
         this.drawRightBottom()
       }, 2400)
     },
-    startAction() { this.isHovered = false },
-    cancelAction() { this.isHovered = true; this.showCityTip() },
+    startAction() { this.isHovered = true },
+    cancelAction() { this.isHovered = false; this.clearCityTip() },
     handleResize() {
       this.$nextTick(() => {
-        if (this.chart) this.chart.resize(); if (this.secondChart) this.secondChart.resize(); if (this.mapChart) this.mapChart.resize(); if (this.rightTopChart) this.rightTopChart.resize(); if (this.rightBottomChart) this.rightBottomChart.resize(); this.showCityTip()
+        if (this.chart) this.chart.resize(); if (this.secondChart) this.secondChart.resize(); if (this.mapChart) this.mapChart.resize(); if (this.rightTopChart) this.rightTopChart.resize(); if (this.rightBottomChart) this.rightBottomChart.resize(); if (!this.isHovered) this.clearCityTip()
       })
     }
   },
