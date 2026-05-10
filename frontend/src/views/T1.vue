@@ -1,7 +1,7 @@
 <template>
     <div class="data-source-page">
         <div class="data-card">
-            <div class="page-title">商品数据来源</div>
+            <div class="page-title">商品总览</div>
             <div class="query-bar">
                 <Input
                     v-model="query.keyword"
@@ -78,19 +78,37 @@ export default {
                     align: 'center',
                     render: (h, params) => {
                         const src = params.row.img_src
+                        const href = params.row.href
                         if (!src) return h('span', '无')
-                        return h('img', {
+
+                        const imageNode = h('img', {
                             attrs: {
                                 src,
-                                alt: params.row.title,
+                                alt: params.row.title || '商品图片',
+                                title: href ? '点击查看商品详情' : '暂无商品链接',
                             },
                             style: {
                                 width: '54px',
                                 height: '54px',
                                 objectFit: 'cover',
                                 borderRadius: '6px',
+                                cursor: href ? 'pointer' : 'default',
+                                verticalAlign: 'middle',
                             },
                         })
+
+                        if (!href) return imageNode
+                        return h('a', {
+                            attrs: {
+                                href,
+                                target: '_blank',
+                                rel: 'noopener noreferrer',
+                            },
+                            style: {
+                                display: 'inline-block',
+                                lineHeight: 0,
+                            },
+                        }, [imageNode])
                     },
                 },
                 {
@@ -146,6 +164,7 @@ export default {
                             attrs: {
                                 href: params.row.href,
                                 target: '_blank',
+                                rel: 'noopener noreferrer',
                             },
                         }, '查看')
                     },
