@@ -49,6 +49,8 @@ export default {
       isHovered: true,
       timer: null,
       typeTimer: null,
+      currentCityIndex: 0,
+      cityWindowSize: 7,
       currentTypeIndex: 0,
       chart: null,
       secondChart: null,
@@ -71,18 +73,45 @@ export default {
       if (!this[chartKey]) this[chartKey] = this.$echarts.init(this.$refs[refName])
       return this[chartKey]
     },
+    getCityWindow() {
+      const names = this.realData.cityList || []
+      const values = this.realData.volumnList || []
+      const total = names.length
+      if (!total) return { names: [], values: [], activeIndex: 0 }
+
+      const size = Math.min(this.cityWindowSize, total)
+      const start = this.currentCityIndex % total
+      const resultNames = []
+      const resultValues = []
+      for (let i = 0; i < size; i++) {
+        const index = (start + i) % total
+        resultNames.push(names[index])
+        resultValues.push(values[index])
+      }
+      return { names: resultNames, values: resultValues, activeIndex: 0 }
+    },
+    showCityTip() {
+      if (!this.chart) return
+      const win = this.getCityWindow()
+      if (!win.names.length) return
+      this.chart.dispatchAction({ type: "downplay", seriesIndex: 0 })
+      this.chart.dispatchAction({ type: "highlight", seriesIndex: 0, dataIndex: win.activeIndex })
+      this.chart.dispatchAction({ type: "showTip", seriesIndex: 0, dataIndex: win.activeIndex })
+    },
     drawLeftTop() {
+      const win = this.getCityWindow()
       this.initChart("firstMain", "chart").setOption({
         backgroundColor: "transparent",
         title: { text: "各地区销售数据", left: 24, top: 16, textStyle: { color: "#e8f7ff", fontSize: 24, fontWeight: "bold" } },
         grid: { left: 60, right: 38, top: 92, bottom: 48 },
         toolbox: { show: true, right: 118, top: 18, itemSize: 16, iconStyle: { borderColor: "#75bfff" }, feature: { magicType: { show: true, type: ["line", "bar"] }, restore: { show: true }, saveAsImage: { show: true } } },
         legend: { data: ["销售数据"], top: 22, right: 20, itemWidth: 18, itemHeight: 10, textStyle: { color: "#c7d8ea", fontSize: 14 } },
-        tooltip: { trigger: "axis" },
-        xAxis: { type: "category", data: this.realData.cityList, axisLine: { lineStyle: { color: "rgba(210,235,255,.75)" } }, axisLabel: { color: "#d9edff", fontSize: 15 } },
-        yAxis: { type: "value", axisLine: { lineStyle: { color: "rgba(210,235,255,.75)" } }, splitLine: { lineStyle: { color: "rgba(210,235,255,.55)" } }, axisLabel: { color: "#d9edff", fontSize: 15 } },
-        series: [{ name: "销售数据", data: this.realData.volumnList, type: "bar", barWidth: 42, itemStyle: { color: "#4f6fe0" }, label: { show: true, position: "inside", color: "#d8e1ff", fontSize: 14 } }]
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, formatter: params => { const p = params[0] || {}; return `${p.name || ""}<br/>销售数据&nbsp;&nbsp;<b>${Number(p.value || 0).toLocaleString()}</b>` } },
+        xAxis: { type: "category", data: win.names, axisLine: { lineStyle: { color: "rgba(210,235,255,.75)" } }, axisLabel: { color: "#d9edff", fontSize: 15 } },
+        yAxis: { type: "value", axisLine: { lineStyle: { color: "rgba(210,235,255,.75)" } }, splitLine: { lineStyle: { color: "rgba(210,235,255,.55)" } }, axisLabel: { color: "#d9edff", fontSize: 15, formatter: value => Number(value).toLocaleString() } },
+        series: [{ name: "销售数据", data: win.values, type: "bar", barWidth: 42, itemStyle: { color: "#4f6fe0" }, emphasis: { itemStyle: { color: "#8fa8ff", shadowBlur: 18, shadowColor: "rgba(126,160,255,.75)" } }, label: { show: true, position: "inside", color: "#d8e1ff", fontSize: 14, formatter: p => Number(p.value || 0).toLocaleString() } }]
       }, true)
+      this.$nextTick(() => setTimeout(this.showCityTip, 80))
     },
     drawLeftBottom() {
       this.initChart("secondMain", "secondChart").setOption({
@@ -146,21 +175,17 @@ export default {
     async drawAllCharts() {
       this.drawLeftTop(); this.drawLeftBottom(); await this.drawCenterMap(); this.drawRightTop(); this.drawRightBottom()
     },
-    changeData(list) {
-      if (!Array.isArray(list) || list.length <= 1) return
-      const first = list[0]
-      for (let i = 0; i < list.length - 1; i++) list[i] = list[i + 1]
-      list[list.length - 1] = first
-    },
     updateBarChart() {
-      if (this.isHovered && this.chart) {
-        this.changeData(this.realData.cityList); this.changeData(this.realData.volumnList)
-        this.chart.setOption({ xAxis: { data: this.realData.cityList }, series: [{ data: this.realData.volumnList }] })
+      if (this.isHovered && this.chart && this.realData.cityList.length) {
+        this.currentCityIndex = (this.currentCityIndex + 1) % this.realData.cityList.length
+        const win = this.getCityWindow()
+        this.chart.setOption({ xAxis: { data: win.names }, series: [{ data: win.values }] })
+        setTimeout(this.showCityTip, 80)
       }
     },
     startDataUpdataInterval() {
       clearInterval(this.timer)
-      this.timer = setInterval(this.updateBarChart, 2000)
+      this.timer = setInterval(this.updateBarChart, 2200)
     },
     startTypeCarousel() {
       clearInterval(this.typeTimer)
@@ -172,10 +197,10 @@ export default {
       }, 2400)
     },
     startAction() { this.isHovered = false },
-    cancelAction() { this.isHovered = true },
+    cancelAction() { this.isHovered = true; this.showCityTip() },
     handleResize() {
       this.$nextTick(() => {
-        if (this.chart) this.chart.resize(); if (this.secondChart) this.secondChart.resize(); if (this.mapChart) this.mapChart.resize(); if (this.rightTopChart) this.rightTopChart.resize(); if (this.rightBottomChart) this.rightBottomChart.resize()
+        if (this.chart) this.chart.resize(); if (this.secondChart) this.secondChart.resize(); if (this.mapChart) this.mapChart.resize(); if (this.rightTopChart) this.rightTopChart.resize(); if (this.rightBottomChart) this.rightBottomChart.resize(); this.showCityTip()
       })
     }
   },
@@ -190,6 +215,7 @@ export default {
     this.$set(this.realData, "priceRangeList", data.priceRangeList || PRICE_RANGE)
     this.$set(this.realData, "priceRangeValueList", data.priceRangeValueList || [0, 0, 0, 0, 0])
     this.$set(this.realData, "typeSalesList", data.typeSalesList || [])
+    this.currentCityIndex = 0
     this.currentTypeIndex = 0
     this.$nextTick(async () => { await this.drawAllCharts(); this.startDataUpdataInterval(); this.startTypeCarousel() })
   },
