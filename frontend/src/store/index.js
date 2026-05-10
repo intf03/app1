@@ -49,6 +49,27 @@ const store = new Vuex.Store({
                 type: 'md-arrow-forward',
                 text: '数据来源',
             },
+            {
+                name: 'password',
+                size: 18,
+                type: 'md-lock',
+                text: '修改密码',
+                hidden: true,
+            },
+            {
+                name: 'userinfo',
+                size: 18,
+                type: 'md-person',
+                text: '基本资料',
+                hidden: true,
+            },
+            {
+                name: 'msg',
+                size: 18,
+                type: 'ios-notifications-outline',
+                text: '通知消息',
+                hidden: true,
+            },
         ],
     },
     mutations: {
