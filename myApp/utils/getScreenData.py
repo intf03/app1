@@ -41,7 +41,7 @@ def safe_float(value):
 
 
 def getSquareData():
-    """各地区销售数据：按地区汇总销量。"""
+    """各地区销售数据：按地区汇总销量，返回全部地区供前端轮播。"""
     products = list(getAllProducts())
     productsVolumn = {}
 
@@ -58,7 +58,7 @@ def getSquareData():
         cityList.append(item[0])
         volumnList.append(item[1])
 
-    return cityList[:7], volumnList[:7]
+    return cityList, volumnList
 
 
 def getPieData():
