@@ -11,7 +11,7 @@ const commonRoutes = [
         component: () => import('../components/Login.vue'),
     },
     {
-        path: '/other', // 点击侧边栏跳到一个单独的路由页面，需要定义，层级和其他顶级路由一样
+        path: '/other',
         name: 'other',
         meta: { title: '单独的路由' },
         component: () => import('../views/Other.vue'),
@@ -25,13 +25,48 @@ const commonRoutes = [
     { path: '/', redirect: '/home' },
 ]
 
-// 本地所有的页面 需要配合后台返回的数据生成页面
 export const asyncRoutes = {
     home: {
         path: 'home',
         name: 'home',
         meta: { title: '主页' },
         component: () => import('../views/Home.vue'),
+    },
+    overview: {
+        path: 'overview',
+        name: 'overview',
+        meta: { title: '总览' },
+        component: () => import('../views/Home.vue'),
+    },
+    lineChart: {
+        path: 'line-chart',
+        name: 'lineChart',
+        meta: { title: '数据折线图' },
+        component: () => import('../views/Home.vue'),
+    },
+    mailMap: {
+        path: 'mail-map',
+        name: 'mailMap',
+        meta: { title: '邮寄分布图' },
+        component: () => import('../views/Home.vue'),
+    },
+    wordCloud: {
+        path: 'word-cloud',
+        name: 'wordCloud',
+        meta: { title: '词云图' },
+        component: () => import('../views/Home.vue'),
+    },
+    salesPredict: {
+        path: 'sales-predict',
+        name: 'salesPredict',
+        meta: { title: '销量预测' },
+        component: () => import('../views/Home.vue'),
+    },
+    dataSource: {
+        path: 'data-source',
+        name: 'dataSource',
+        meta: { title: '数据来源' },
+        component: () => import('../views/T1.vue'),
     },
     t1: {
         path: 't1',
