@@ -74,10 +74,10 @@ export default {
     drawLeftTop() {
       this.initChart("firstMain", "chart").setOption({
         backgroundColor: "transparent",
-        title: { text: "各地区销售数据", left: "center", top: 20, textStyle: { color: "#e8f7ff", fontSize: 24, fontWeight: "bold" } },
-        grid: { left: 60, right: 52, top: 92, bottom: 48 },
-        toolbox: { show: true, right: 22, top: 34, iconStyle: { borderColor: "#75bfff" }, feature: { magicType: { show: true, type: ["line", "bar"] }, restore: { show: true }, saveAsImage: { show: true } } },
-        legend: { data: ["销售数据"], top: 55, right: 46, textStyle: { color: "#c7d8ea" } },
+        title: { text: "各地区销售数据", left: 24, top: 16, textStyle: { color: "#e8f7ff", fontSize: 24, fontWeight: "bold" } },
+        grid: { left: 60, right: 38, top: 92, bottom: 48 },
+        toolbox: { show: true, right: 118, top: 18, itemSize: 16, iconStyle: { borderColor: "#75bfff" }, feature: { magicType: { show: true, type: ["line", "bar"] }, restore: { show: true }, saveAsImage: { show: true } } },
+        legend: { data: ["销售数据"], top: 22, right: 20, itemWidth: 18, itemHeight: 10, textStyle: { color: "#c7d8ea", fontSize: 14 } },
         tooltip: { trigger: "axis" },
         xAxis: { type: "category", data: this.realData.cityList, axisLine: { lineStyle: { color: "rgba(210,235,255,.75)" } }, axisLabel: { color: "#d9edff", fontSize: 15 } },
         yAxis: { type: "value", axisLine: { lineStyle: { color: "rgba(210,235,255,.75)" } }, splitLine: { lineStyle: { color: "rgba(210,235,255,.55)" } }, axisLabel: { color: "#d9edff", fontSize: 15 } },
@@ -203,8 +203,22 @@ export default {
 </script>
 
 <style scoped>
-.dashboard-page { width: 100%; min-height: 900px; overflow: auto; background: #020b1a; }
-.dashboard-stage { position: relative; width: 1680px; height: 900px; margin: 0 auto; color: #dff6ff; background: url('../assets/imgs/bg.jpg') no-repeat center center; background-size: cover; overflow: hidden; }
+.dashboard-page {
+  width: 100%;
+  min-height: calc(100vh - 90px);
+  overflow: auto;
+  background: #020b1a url('../assets/imgs/bg.jpg') no-repeat center top;
+  background-size: cover;
+}
+.dashboard-stage {
+  position: relative;
+  width: 1680px;
+  height: 900px;
+  margin: 0 auto;
+  color: #dff6ff;
+  background: transparent;
+  overflow: hidden;
+}
 .dashboard-header { height: 100px; display: flex; align-items: center; justify-content: center; }
 .header-deco { width: 430px; height: 62px; }
 .header-center { width: 480px; display: flex; flex-direction: column; align-items: center; }
@@ -224,4 +238,8 @@ export default {
 .panel-deco { position: absolute; z-index: 2; }
 .left-deco { width: 220px; height: 24px; top: 12px; left: 28px; }
 .right-deco { width: 310px; height: 26px; top: 16px; left: 34px; }
+::v-deep .ivu-layout-content,
+::v-deep .main-content {
+  background: transparent !important;
+}
 </style>
