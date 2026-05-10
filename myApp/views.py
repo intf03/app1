@@ -1,18 +1,34 @@
-from django.shortcuts import render
-from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
-# Create your views here.
-
 from .utils import getScreenData
+
+
 def screenData(request):
-    if request.method == 'GET':
+    if request.method != 'GET':
+        return JsonResponse({
+            'code': 405,
+            'msg': 'method not allowed'
+        }, status=405)
+
+    try:
         cityList, volumnList = getScreenData.getSquareData()
-        getScreenData.getPieData()
         pieList = getScreenData.getPieData()
         mapData = getScreenData.getMapData()
+        priceRangeList, priceRangeValueList = getScreenData.getPriceRangeData()
+        typeSalesList = getScreenData.getTypeSalesData()
+
         return JsonResponse({
-            'cityList':cityList,
-            'volumnList':volumnList,
-            'pieList':pieList,
-            'mapData':mapData
+            'code': 0,
+            'msg': 'success',
+            'cityList': cityList,
+            'volumnList': volumnList,
+            'pieList': pieList,
+            'mapData': mapData,
+            'priceRangeList': priceRangeList,
+            'priceRangeValueList': priceRangeValueList,
+            'typeSalesList': typeSalesList,
         })
+    except Exception as e:
+        return JsonResponse({
+            'code': 500,
+            'msg': str(e)
+        }, status=500)
