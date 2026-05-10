@@ -11,6 +11,6 @@ import os
 
 from django.core.asgi import get_asgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', '商品销售数据预测可视化系统.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
 
 application = get_asgi_application()

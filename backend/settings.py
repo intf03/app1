@@ -57,7 +57,7 @@ CORS_ALLOW_ORIGINS = 'http://192.168.164.2:8080'
 CORS_ALLOW_HEADERS = ('*')
 CORS_ORIGIN_ALLOW_ALL = True
 
-ROOT_URLCONF = '商品销售数据预测可视化系统.urls'
+ROOT_URLCONF = 'backend.urls'
 
 TEMPLATES = [
     {
@@ -75,7 +75,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = '商品销售数据预测可视化系统.wsgi.application'
+WSGI_APPLICATION = 'backend.wsgi.application'
 
 
 # Database
