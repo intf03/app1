@@ -42,7 +42,7 @@ export const asyncRoutes = {
         path: 'line-chart',
         name: 'lineChart',
         meta: { title: '数据折线图' },
-        component: () => import('../views/Home.vue'),
+        component: () => import('../views/LineChart.vue'),
     },
     mailMap: {
         path: 'mail-map',
