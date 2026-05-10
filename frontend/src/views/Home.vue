@@ -1,6 +1,6 @@
 <template>
-  <div class="dashboard-page" ref="layoutRef">
-    <div class="dashboard-stage" :style="screenStyle">
+  <div class="dashboard-page">
+    <div class="dashboard-stage">
       <div class="dashboard-header">
         <dv-decoration-8 class="header-deco" />
         <div class="header-center">
@@ -48,12 +48,6 @@ import getMap from "@/api/getMap.js"
 export default {
   data() {
     return {
-      designWidth: 1680,
-      designHeight: 900,
-      screenScale: 1,
-      screenLeft: 0,
-      screenTop: 0,
-
       isHovered: true,
       timer: null,
       chart: null,
@@ -73,33 +67,7 @@ export default {
     }
   },
 
-  computed: {
-    screenStyle() {
-      return {
-        transform: `scale(${this.screenScale})`,
-        left: `${this.screenLeft}px`,
-        top: `${this.screenTop}px`
-      }
-    }
-  },
-
   methods: {
-    initScale() {
-      const box = this.$refs.layoutRef
-      const rect = box ? box.getBoundingClientRect() : null
-      const ww = rect && rect.width ? rect.width : window.innerWidth
-      let wh = rect && rect.height ? rect.height : window.innerHeight
-
-      if (wh < 420) {
-        wh = window.innerHeight - 90
-      }
-
-      const scale = Math.min(ww / this.designWidth, wh / this.designHeight)
-      this.screenScale = scale
-      this.screenLeft = Math.max((ww - this.designWidth * scale) / 2, 0)
-      this.screenTop = Math.max((wh - this.designHeight * scale) / 2, 0)
-    },
-
     initChart(refName, chartKey) {
       if (!this[chartKey]) {
         this[chartKey] = this.$echarts.init(this.$refs[refName])
@@ -565,7 +533,6 @@ export default {
     },
 
     handleResize() {
-      this.initScale()
       this.$nextTick(() => {
         if (this.chart) this.chart.resize()
         if (this.secondChart) this.secondChart.resize()
@@ -577,10 +544,6 @@ export default {
   },
 
   async mounted() {
-    this.$nextTick(() => {
-      this.initScale()
-    })
-
     window.addEventListener("resize", this.handleResize)
 
     const res = await this.$http.get("myApp/screenData")
@@ -595,7 +558,6 @@ export default {
     this.$set(this.realData, "typeSalesList", data.typeSalesList || [])
 
     this.$nextTick(async () => {
-      this.initScale()
       await this.drawAllCharts()
       this.startDataUpdataInterval()
     })
@@ -615,19 +577,17 @@ export default {
 
 <style scoped>
 .dashboard-page {
-  position: relative;
   width: 100%;
-  height: 100%;
-  min-height: 760px;
-  overflow: hidden;
+  min-height: 900px;
+  overflow: auto;
   background: #020b1a;
 }
 
 .dashboard-stage {
-  position: absolute;
+  position: relative;
   width: 1680px;
   height: 900px;
-  transform-origin: left top;
+  margin: 0 auto;
   color: #dff6ff;
   background: url('../assets/imgs/bg.jpg') no-repeat center center;
   background-size: cover;
