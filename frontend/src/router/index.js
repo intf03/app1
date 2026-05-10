@@ -36,7 +36,7 @@ export const asyncRoutes = {
         path: 'overview',
         name: 'overview',
         meta: { title: '总览' },
-        component: () => import('../views/Home.vue'),
+        component: () => import('../views/T1.vue'),
     },
     lineChart: {
         path: 'line-chart',
