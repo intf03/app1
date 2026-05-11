@@ -78,7 +78,7 @@ export const asyncRoutes = {
         path: 'data-source',
         name: 'dataSource',
         meta: { title: '数据来源' },
-        component: () => import('../views/T1.vue'),
+        component: () => import('../views/DataSource.vue'),
     },
     t1: {
         path: 't1',
