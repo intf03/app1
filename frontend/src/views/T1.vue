@@ -1,47 +1,43 @@
 <template>
-    <div class="data-source-page">
-        <div class="data-card">
-            <div class="page-title">商品总览</div>
-            <div class="query-bar">
-                <Input
-                    v-model="query.keyword"
-                    search
-                    clearable
-                    placeholder="请输入商品名称、店铺、类型或地区"
-                    style="width: 320px"
-                    @on-search="handleSearch"
-                    @on-clear="handleSearch"
-                />
-                <Select v-model="query.type" clearable placeholder="商品类型" style="width: 160px" @on-change="handleSearch">
-                    <Option v-for="item in typeList" :key="item" :value="item">{{ item }}</Option>
-                </Select>
-                <Select v-model="query.address" clearable placeholder="地区" style="width: 160px" @on-change="handleSearch">
-                    <Option v-for="item in addressList" :key="item" :value="item">{{ item }}</Option>
-                </Select>
-                <Button type="primary" @click="handleSearch">查询</Button>
-                <Button @click="resetSearch">重置</Button>
+    <div class="overview-page">
+        <div class="section-card condition-card">
+            <div class="section-title">▦ 条件选择</div>
+            <div class="condition-body">
+                <div class="condition-item">
+                    <span class="dash">-</span>
+                    <div class="field-wrap">
+                        <div class="field-label">地址</div>
+                        <Select v-model="query.address" clearable placeholder="请选择" style="width: 190px">
+                            <Option v-for="item in addressList" :key="item" :value="item">{{ item }}</Option>
+                        </Select>
+                    </div>
+                </div>
+
+                <div class="condition-item">
+                    <span class="dash">-</span>
+                    <div class="field-wrap">
+                        <div class="field-label">产品类型</div>
+                        <Select v-model="query.type" clearable placeholder="请选择" style="width: 190px">
+                            <Option v-for="item in typeList" :key="item" :value="item">{{ item }}</Option>
+                        </Select>
+                    </div>
+                </div>
+
+                <Button type="primary" class="submit-btn" :loading="loading" @click="handleSearch">提交</Button>
             </div>
+        </div>
 
-            <Table
-                border
-                stripe
-                :loading="loading"
-                :columns="columns"
-                :data="tableData"
-                max-height="620"
-            ></Table>
-
-            <div class="pager-wrap">
-                <Page
-                    :total="total"
-                    :current="query.page"
-                    :page-size="query.pageSize"
-                    show-sizer
-                    show-elevator
-                    show-total
-                    @on-change="handlePageChange"
-                    @on-page-size-change="handlePageSizeChange"
-                />
+        <div class="section-card data-card">
+            <div class="section-title">▣ 数据</div>
+            <div class="table-shell">
+                <Table
+                    border
+                    stripe
+                    :loading="loading"
+                    :columns="columns"
+                    :data="tableData"
+                    height="365"
+                ></Table>
             </div>
         </div>
     </div>
@@ -49,125 +45,71 @@
 
 <script>
 export default {
-    name: 'dataSource',
+    name: 'OverviewTable',
     data() {
         return {
             loading: false,
             query: {
                 page: 1,
-                pageSize: 10,
-                keyword: '',
+                pageSize: 200,
                 type: '',
                 address: '',
             },
-            total: 0,
             tableData: [],
             typeList: [],
             addressList: [],
             columns: [
                 {
-                    title: '序号',
-                    width: 70,
+                    title: '商品导入序号',
+                    width: 120,
                     align: 'center',
-                    render: (h, params) => h('span', (this.query.page - 1) * this.query.pageSize + params.index + 1),
-                },
-                {
-                    title: '商品图片',
-                    key: 'img_src',
-                    width: 110,
-                    align: 'center',
-                    render: (h, params) => {
-                        const src = params.row.img_src
-                        const href = params.row.href
-                        if (!src) return h('span', '无')
-
-                        const imageNode = h('img', {
-                            attrs: {
-                                src,
-                                alt: params.row.title || '商品图片',
-                                title: href ? '点击查看商品详情' : '暂无商品链接',
-                            },
-                            style: {
-                                width: '54px',
-                                height: '54px',
-                                objectFit: 'cover',
-                                borderRadius: '6px',
-                                cursor: href ? 'pointer' : 'default',
-                                verticalAlign: 'middle',
-                            },
-                        })
-
-                        if (!href) return imageNode
-                        return h('a', {
-                            attrs: {
-                                href,
-                                target: '_blank',
-                                rel: 'noopener noreferrer',
-                            },
-                            style: {
-                                display: 'inline-block',
-                                lineHeight: 0,
-                            },
-                        }, [imageNode])
-                    },
-                },
-                {
-                    title: '商品名称',
-                    key: 'title',
-                    minWidth: 260,
-                    tooltip: true,
+                    render: (h, params) => h('span', this.getRowId(params.row, params.index)),
                 },
                 {
                     title: '类型',
                     key: 'type',
-                    width: 120,
+                    width: 110,
                     align: 'center',
                 },
                 {
-                    title: '价格',
-                    key: 'price',
-                    width: 120,
+                    title: '商品名',
+                    key: 'title',
+                    minWidth: 360,
                     align: 'center',
-                    render: (h, params) => h('span', params.row.price ? `￥${params.row.price}` : '-'),
+                    tooltip: true,
                 },
                 {
                     title: '销量',
                     key: 'buy_len',
-                    width: 120,
+                    width: 110,
                     align: 'center',
+                },
+                {
+                    title: '图片',
+                    key: 'img_src',
+                    width: 180,
+                    align: 'center',
+                    render: (h, params) => this.renderProductImage(h, params.row),
                 },
                 {
                     title: '店铺',
                     key: 'name',
-                    minWidth: 160,
+                    minWidth: 210,
+                    align: 'center',
                     tooltip: true,
                 },
                 {
-                    title: '地区',
+                    title: '地址',
                     key: 'address',
-                    width: 130,
+                    width: 140,
                     align: 'center',
                 },
                 {
                     title: '是否包邮',
                     key: 'isFreeDelivery',
-                    width: 120,
+                    width: 130,
                     align: 'center',
-                },
-                {
-                    title: '链接',
-                    width: 90,
-                    align: 'center',
-                    render: (h, params) => {
-                        if (!params.row.href) return h('span', '-')
-                        return h('a', {
-                            attrs: {
-                                href: params.row.href,
-                                target: '_blank',
-                                rel: 'noopener noreferrer',
-                            },
-                        }, '查看')
-                    },
+                    render: (h, params) => h('span', this.formatDelivery(params.row.isFreeDelivery)),
                 },
             ],
         }
@@ -182,17 +124,16 @@ export default {
                 const res = await this.$http.get('myApp/productList', {
                     params: this.query,
                 })
-                const data = res.data || res
-                if (data.code === 0) {
-                    this.tableData = data.data || []
-                    this.total = data.total || 0
-                    this.typeList = data.typeList || []
-                    this.addressList = data.addressList || []
+                const body = res.data || res
+                if (body.code === 0 || Array.isArray(body.data)) {
+                    this.tableData = body.data || []
+                    this.typeList = body.typeList || this.getUniqueList(this.tableData, 'type')
+                    this.addressList = body.addressList || this.getUniqueList(this.tableData, 'address')
                 } else {
-                    this.$Message.error(data.msg || '数据加载失败')
+                    this.$Message.error(body.msg || '数据加载失败')
                 }
             } catch (e) {
-                this.$Message.error('数据来源接口请求失败')
+                this.$Message.error('总览数据接口请求失败')
             } finally {
                 this.loading = false
             }
@@ -201,58 +142,135 @@ export default {
             this.query.page = 1
             this.fetchData()
         },
-        resetSearch() {
-            this.query.keyword = ''
-            this.query.type = ''
-            this.query.address = ''
-            this.query.page = 1
-            this.fetchData()
+        getUniqueList(list, key) {
+            return Array.from(new Set((list || []).map(item => item && item[key]).filter(Boolean)))
         },
-        handlePageChange(page) {
-            this.query.page = page
-            this.fetchData()
+        getRowId(row, index) {
+            return row.id || row.product_id || row.goods_id || row.item_id || index + 1
         },
-        handlePageSizeChange(pageSize) {
-            this.query.pageSize = pageSize
-            this.query.page = 1
-            this.fetchData()
+        renderProductImage(h, row) {
+            const src = row.img_src
+            const href = row.href
+            if (!src) return h('span', '-')
+
+            const imageNode = h('img', {
+                attrs: {
+                    src,
+                    alt: row.title || '商品图片',
+                    title: href ? '点击查看商品详情' : '暂无商品链接',
+                },
+                style: {
+                    width: '82px',
+                    height: '82px',
+                    objectFit: 'cover',
+                    cursor: href ? 'pointer' : 'default',
+                    verticalAlign: 'middle',
+                },
+            })
+
+            if (!href) return imageNode
+            return h('a', {
+                attrs: {
+                    href,
+                    target: '_blank',
+                    rel: 'noopener noreferrer',
+                },
+                style: {
+                    display: 'inline-block',
+                    lineHeight: 0,
+                },
+            }, [imageNode])
+        },
+        formatDelivery(value) {
+            if (value === 1 || value === '1' || value === true || value === 'true' || value === '包邮') return '1'
+            if (value === 0 || value === '0' || value === false || value === 'false' || value === '不包邮') return '0'
+            return value || '-'
         },
     },
 }
 </script>
 
 <style scoped>
-.data-source-page {
+.overview-page {
     min-height: calc(100vh - 90px);
-    padding: 18px;
+    padding: 0 12px 18px;
     background: #f4f7fb;
 }
 
-.data-card {
+.section-card {
     background: #fff;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, .06);
+    border: 1px solid #e6e9ef;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .06);
+    margin-bottom: 10px;
 }
 
-.page-title {
-    font-size: 22px;
-    font-weight: bold;
-    color: #17233d;
-    margin-bottom: 18px;
+.condition-card {
+    min-height: 205px;
 }
 
-.query-bar {
+.section-title {
+    height: 50px;
+    line-height: 50px;
+    padding: 0 20px;
+    font-size: 16px;
+    color: #333;
+    border-bottom: 1px solid #e6e9ef;
+}
+
+.condition-body {
     display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
     align-items: center;
-    margin-bottom: 16px;
+    gap: 64px;
+    padding: 30px 0 0 38px;
 }
 
-.pager-wrap {
-    margin-top: 16px;
+.condition-item {
     display: flex;
-    justify-content: flex-end;
+    align-items: flex-start;
+    gap: 28px;
+}
+
+.dash {
+    font-size: 18px;
+    color: #333;
+    line-height: 30px;
+}
+
+.field-label {
+    font-size: 15px;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.submit-btn {
+    margin-top: 28px;
+    width: 76px;
+    height: 38px;
+}
+
+.data-card {
+    min-height: 470px;
+}
+
+.table-shell {
+    margin: 20px;
+    border: 1px solid #dcdee2;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+::v-deep .ivu-table td {
+    height: 112px;
+    font-size: 15px;
+    color: #666;
+}
+
+::v-deep .ivu-table th {
+    height: 48px;
+    font-size: 15px;
+    color: #333;
+    font-weight: 500;
+    background: #fff;
 }
 </style>
