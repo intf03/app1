@@ -48,32 +48,42 @@
         <div class="section-card data-card">
             <div class="section-title">▣ 数据</div>
             <div class="predict-shell">
-                <div class="predict-title">▣ 预测情况</div>
+                <div class="predict-title">▣ {{ currentAlgorithm.title }}情况</div>
                 <div class="predict-main">
                     <div class="result-panel">
-                        <div class="main-result">销量： {{ formatDecimal(finalPrediction) }}</div>
-                        <div class="result-desc">
-                            综合线性回归、KNN相似商品、相似度加权、分组决策树四种算法的预测结果
-                        </div>
+                        <div class="main-result">销量： {{ formatDecimal(predictionValue) }}</div>
+                        <div class="algorithm-name">{{ currentAlgorithm.title }}</div>
+                        <div class="result-desc">{{ currentAlgorithm.desc }}</div>
                     </div>
 
-                    <div class="algorithm-grid">
-                        <div v-for="item in algorithmResults" :key="item.name" class="algorithm-card">
-                            <div class="algo-name">{{ item.name }}</div>
-                            <div class="algo-value">{{ formatDecimal(item.value) }}</div>
-                            <div class="algo-desc">{{ item.desc }}</div>
+                    <div class="summary-grid">
+                        <div class="summary-card">
+                            <div class="summary-label">训练样本</div>
+                            <div class="summary-value">{{ trainData.length }}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-label">参考样本</div>
+                            <div class="summary-value">{{ availableRecords.length }}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-label">历史均值</div>
+                            <div class="summary-value">{{ formatDecimal(historyAverage) }}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-label">价格输入</div>
+                            <div class="summary-value">{{ formatDecimal(toNumber(query.price)) }}</div>
                         </div>
                     </div>
 
                     <div class="chart-row">
-                        <div ref="algorithmChart" class="algorithm-chart"></div>
+                        <div ref="predictChart" class="predict-chart"></div>
                         <div class="sample-box">
                             <div class="sample-title">相似商品参考</div>
                             <Table
                                 size="small"
                                 :columns="sampleColumns"
                                 :data="similarSamples"
-                                height="210"
+                                height="230"
                             ></Table>
                         </div>
                     </div>
@@ -84,6 +94,29 @@
 </template>
 
 <script>
+const ALGORITHM_MAP = {
+    linear: {
+        title: '线性回归预测',
+        desc: '根据历史商品价格与销量之间的线性关系，估算当前输入商品的销量。',
+        chartTitle: '价格-销量线性趋势',
+    },
+    knn: {
+        title: 'KNN近邻预测',
+        desc: '寻找与当前商品在类型、价格、地址、包邮情况上最相似的商品，按近邻销量加权估算。',
+        chartTitle: '近邻商品销量参考',
+    },
+    weighted: {
+        title: '相似度加权预测',
+        desc: '对所有历史商品按相似度计算权重，权重越高的商品对预测销量影响越大。',
+        chartTitle: '相似度权重分布',
+    },
+    tree: {
+        title: '分组决策树预测',
+        desc: '按照产品类型、地址和包邮情况逐层分组，取最匹配分组的历史销量均值。',
+        chartTitle: '分组层级预测',
+    },
+}
+
 export default {
     name: 'SalesPredict',
     data() {
@@ -94,9 +127,11 @@ export default {
             trainData: [],
             typeList: [],
             addressList: [],
-            finalPrediction: 0,
-            algorithmResults: [],
+            predictionValue: 0,
+            historyAverage: 0,
+            availableRecords: [],
             similarSamples: [],
+            chartData: [],
             query: {
                 type: '服装',
                 price: '200',
@@ -150,6 +185,19 @@ export default {
             ],
         }
     },
+    computed: {
+        algorithmType() {
+            return (this.$route.meta && this.$route.meta.algorithm) || 'linear'
+        },
+        currentAlgorithm() {
+            return ALGORITHM_MAP[this.algorithmType] || ALGORITHM_MAP.linear
+        },
+    },
+    watch: {
+        '$route.name'() {
+            this.runPrediction()
+        },
+    },
     mounted() {
         window.addEventListener('resize', this.resizeChart)
         this.fetchData()
@@ -176,15 +224,14 @@ export default {
                 this.trainData = this.rawProducts.map(this.normalizeProduct).filter(item => item.sales > 0)
                 this.typeList = body.typeList || this.getUniqueList(this.trainData, 'type')
                 this.addressList = body.addressList || this.getUniqueList(this.trainData, 'address')
-
                 this.setDefaultQuery()
                 this.runPrediction()
             } catch (e) {
                 this.$Message.error('销量预测数据接口请求失败')
                 this.trainData = []
-                this.algorithmResults = []
+                this.predictionValue = 0
+                this.availableRecords = []
                 this.similarSamples = []
-                this.finalPrediction = 0
             } finally {
                 this.loading = false
             }
@@ -197,43 +244,51 @@ export default {
             this.runPrediction()
         },
         runPrediction() {
-            const input = {
+            if (!this.trainData.length) return
+            const input = this.getInput()
+            const records = this.getAvailableRecords(input)
+            this.availableRecords = records
+            this.historyAverage = this.average(records, 'sales')
+
+            if (this.algorithmType === 'knn') {
+                this.predictionValue = this.knnPredict(records, input)
+                this.chartData = this.getSimilarSamples(records, input).map((item, index) => ({ name: '近邻' + (index + 1), value: item.sales }))
+            } else if (this.algorithmType === 'weighted') {
+                this.predictionValue = this.weightedSimilarityPredict(records, input)
+                this.chartData = this.getWeightedChartData(records, input)
+            } else if (this.algorithmType === 'tree') {
+                const treeResult = this.groupDecisionPredict(input)
+                this.predictionValue = treeResult.value
+                this.chartData = treeResult.levels
+            } else {
+                const linearResult = this.linearRegressionPredict(records, input)
+                this.predictionValue = linearResult.value
+                this.chartData = linearResult.points
+            }
+
+            this.similarSamples = this.getSimilarSamples(records, input)
+            this.drawChart()
+        },
+        getInput() {
+            return {
                 type: this.query.type || '',
                 price: this.toNumber(this.query.price),
                 address: this.query.address || '',
                 delivery: this.query.delivery,
             }
-
-            const baseRecords = this.getAvailableRecords()
-            const linear = this.linearRegressionPredict(baseRecords, input)
-            const knn = this.knnPredict(baseRecords, input)
-            const weighted = this.weightedSimilarityPredict(baseRecords, input)
-            const tree = this.groupDecisionPredict(baseRecords, input)
-
-            this.algorithmResults = [
-                { name: '线性回归', value: linear, desc: '根据价格与销量关系估算' },
-                { name: 'KNN近邻回归', value: knn, desc: '参考最相似商品的销量' },
-                { name: '相似度加权', value: weighted, desc: '按类型、价格、地区、包邮综合加权' },
-                { name: '分组决策树', value: tree, desc: '按商品属性分组取历史均值' },
-            ]
-
-            this.finalPrediction = this.safeNumber(linear * 0.25 + knn * 0.3 + weighted * 0.25 + tree * 0.2)
-            this.similarSamples = this.getSimilarSamples(baseRecords, input)
-            this.drawAlgorithmChart()
         },
-        getAvailableRecords() {
-            const delivery = this.query.delivery
+        getAvailableRecords(input) {
             const strict = this.trainData.filter(item => {
-                const typeOk = !this.query.type || item.type === this.query.type
-                const addressOk = !this.query.address || item.address === this.query.address
-                const deliveryOk = delivery === '' || item.delivery === delivery
+                const typeOk = !input.type || item.type === input.type
+                const addressOk = !input.address || item.address === input.address
+                const deliveryOk = input.delivery === '' || item.delivery === input.delivery
                 return typeOk && addressOk && deliveryOk
             })
             if (strict.length >= 3) return strict
 
             const medium = this.trainData.filter(item => {
-                const typeOk = !this.query.type || item.type === this.query.type
-                const deliveryOk = delivery === '' || item.delivery === delivery
+                const typeOk = !input.type || item.type === input.type
+                const deliveryOk = input.delivery === '' || item.delivery === input.delivery
                 return typeOk && deliveryOk
             })
             if (medium.length >= 3) return medium
@@ -241,9 +296,14 @@ export default {
             return this.trainData.slice()
         },
         linearRegressionPredict(records, input) {
-            if (!records.length) return 0
+            if (!records.length) return { value: 0, points: [] }
             const usable = records.filter(item => item.price > 0 && item.sales > 0)
-            if (usable.length < 2) return this.average(records, 'sales')
+            if (usable.length < 2) {
+                return {
+                    value: this.average(records, 'sales'),
+                    points: records.slice(0, 10).map(item => ({ name: this.formatDecimal(item.price), value: item.sales })),
+                }
+            }
 
             const xAvg = this.average(usable, 'price')
             const yAvg = this.average(usable, 'sales')
@@ -253,19 +313,22 @@ export default {
                 numerator += (item.price - xAvg) * (item.sales - yAvg)
                 denominator += Math.pow(item.price - xAvg, 2)
             })
-            if (!denominator) return yAvg
+            if (!denominator) {
+                return { value: yAvg, points: usable.slice(0, 10).map(item => ({ name: this.formatDecimal(item.price), value: item.sales })) }
+            }
             const slope = numerator / denominator
             const intercept = yAvg - slope * xAvg
-            return this.clampPrediction(intercept + slope * input.price)
+            const predicted = this.clampPrediction(intercept + slope * input.price)
+            const points = usable.sort((a, b) => a.price - b.price).slice(0, 12).map(item => ({
+                name: this.formatDecimal(item.price),
+                value: item.sales,
+            }))
+            points.push({ name: '预测价' + this.formatDecimal(input.price), value: predicted })
+            return { value: predicted, points }
         },
         knnPredict(records, input) {
-            if (!records.length) return 0
-            const sorted = records.map(item => ({
-                ...item,
-                distance: this.calcDistance(item, input),
-            })).sort((a, b) => a.distance - b.distance)
-            const k = Math.min(8, sorted.length)
-            const nearest = sorted.slice(0, k)
+            const nearest = this.getSimilarSamples(records, input)
+            if (!nearest.length) return 0
             let totalWeight = 0
             let totalValue = 0
             nearest.forEach(item => {
@@ -287,20 +350,27 @@ export default {
             })
             return this.clampPrediction(totalValue / Math.max(totalWeight, 1))
         },
-        groupDecisionPredict(records, input) {
-            const levels = [
-                item => item.type === input.type && item.address === input.address && item.delivery === input.delivery,
-                item => item.type === input.type && item.address === input.address,
-                item => item.type === input.type && item.delivery === input.delivery,
-                item => item.type === input.type,
-                item => item.address === input.address,
-                () => true,
+        groupDecisionPredict(input) {
+            const groups = [
+                { name: '类型+地址+包邮', filter: item => item.type === input.type && item.address === input.address && item.delivery === input.delivery },
+                { name: '类型+地址', filter: item => item.type === input.type && item.address === input.address },
+                { name: '类型+包邮', filter: item => item.type === input.type && item.delivery === input.delivery },
+                { name: '产品类型', filter: item => item.type === input.type },
+                { name: '产品地址', filter: item => item.address === input.address },
+                { name: '全部样本', filter: () => true },
             ]
-            for (let i = 0; i < levels.length; i++) {
-                const group = this.trainData.filter(levels[i])
-                if (group.length >= 3) return this.clampPrediction(this.average(group, 'sales'))
+            const levels = []
+            let result = 0
+            for (let i = 0; i < groups.length; i++) {
+                const matched = this.trainData.filter(groups[i].filter)
+                const avg = this.average(matched, 'sales')
+                levels.push({ name: groups[i].name, value: avg, count: matched.length })
+                if (!result && matched.length >= 3) result = avg
             }
-            return this.clampPrediction(this.average(records, 'sales'))
+            return {
+                value: this.clampPrediction(result || this.average(this.trainData, 'sales')),
+                levels,
+            }
         },
         getSimilarSamples(records, input) {
             return records.map(item => ({
@@ -308,41 +378,48 @@ export default {
                 distance: this.calcDistance(item, input),
             })).sort((a, b) => a.distance - b.distance).slice(0, 8)
         },
+        getWeightedChartData(records, input) {
+            return this.getSimilarSamples(records, input).map((item, index) => ({
+                name: '样本' + (index + 1),
+                value: Number((Math.exp(-item.distance * 1.5) * 100).toFixed(2)),
+                sales: item.sales,
+            }))
+        },
         calcDistance(item, input) {
-            const maxPrice = Math.max.apply(null, this.trainData.map(row => row.price || 0).concat([input.price, 1]))
+            const priceList = this.trainData.map(row => row.price || 0).concat([input.price, 1])
+            const maxPrice = Math.max.apply(null, priceList)
             const priceDistance = Math.abs((item.price || 0) - input.price) / Math.max(maxPrice, 1)
             const typeDistance = input.type && item.type !== input.type ? 0.9 : 0
             const addressDistance = input.address && item.address !== input.address ? 0.65 : 0
             const deliveryDistance = input.delivery !== '' && item.delivery !== input.delivery ? 0.45 : 0
             return priceDistance + typeDistance + addressDistance + deliveryDistance
         },
-        drawAlgorithmChart() {
+        drawChart() {
             this.$nextTick(() => {
-                if (!this.$refs.algorithmChart) return
-                if (!this.chart) this.chart = this.$echarts.init(this.$refs.algorithmChart)
-                const names = this.algorithmResults.map(item => item.name)
-                const values = this.algorithmResults.map(item => Number(this.formatDecimal(item.value)))
+                if (!this.$refs.predictChart) return
+                if (!this.chart) this.chart = this.$echarts.init(this.$refs.predictChart)
+
+                const names = this.chartData.map(item => item.name)
+                const values = this.chartData.map(item => Number(this.formatDecimal(item.value)))
+                const isLine = this.algorithmType === 'linear'
+
                 this.chart.setOption({
                     backgroundColor: '#fff',
                     title: {
-                        text: '多算法预测对比',
+                        text: this.currentAlgorithm.chartTitle,
                         left: 16,
                         top: 8,
                         textStyle: { fontSize: 15, color: '#333', fontWeight: 500 },
                     },
                     tooltip: {
                         trigger: 'axis',
-                        axisPointer: { type: 'shadow' },
-                        formatter: params => {
-                            const item = params[0]
-                            return `${item.name}<br/>预测销量：${this.formatDecimal(item.value)}`
-                        },
+                        axisPointer: { type: isLine ? 'line' : 'shadow' },
                     },
                     grid: {
                         left: 70,
                         right: 28,
-                        top: 56,
-                        bottom: 42,
+                        top: 58,
+                        bottom: 48,
                     },
                     xAxis: {
                         type: 'category',
@@ -351,15 +428,16 @@ export default {
                     },
                     yAxis: {
                         type: 'value',
-                        name: '销量',
+                        name: this.algorithmType === 'weighted' ? '权重' : '销量',
                         axisLabel: { color: '#666' },
                         splitLine: { lineStyle: { color: '#e6e9ef' } },
                     },
                     series: [
                         {
-                            name: '预测销量',
-                            type: 'bar',
-                            barWidth: 38,
+                            name: this.algorithmType === 'weighted' ? '相似权重' : '销量',
+                            type: isLine ? 'line' : 'bar',
+                            smooth: isLine,
+                            barWidth: 36,
                             data: values,
                             label: {
                                 show: true,
@@ -461,6 +539,7 @@ export default {
     align-items: center;
     gap: 46px;
     padding: 30px 0 0 48px;
+    flex-wrap: wrap;
 }
 
 .condition-item {
@@ -488,7 +567,7 @@ export default {
 }
 
 .data-card {
-    min-height: 520px;
+    min-height: 560px;
 }
 
 .predict-shell {
@@ -509,12 +588,12 @@ export default {
 }
 
 .predict-main {
-    min-height: 430px;
-    padding: 30px 34px 26px;
+    min-height: 460px;
+    padding: 28px 34px 26px;
 }
 
 .result-panel {
-    height: 132px;
+    height: 130px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -523,9 +602,15 @@ export default {
 
 .main-result {
     font-size: 52px;
-    line-height: 68px;
+    line-height: 64px;
     color: #666;
     letter-spacing: 2px;
+}
+
+.algorithm-name {
+    margin-top: 2px;
+    color: #2d8cf0;
+    font-size: 16px;
 }
 
 .result-desc {
@@ -534,53 +619,46 @@ export default {
     font-size: 14px;
 }
 
-.algorithm-grid {
+.summary-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 14px;
-    margin: 10px 0 24px;
+    margin: 6px 0 22px;
 }
 
-.algorithm-card {
+.summary-card {
     border: 1px solid #e6e9ef;
     border-radius: 5px;
-    padding: 14px 16px;
     background: #fbfcff;
+    padding: 12px 16px;
 }
 
-.algo-name {
-    color: #333;
-    font-size: 15px;
-    margin-bottom: 8px;
-}
-
-.algo-value {
-    color: #2d8cf0;
-    font-size: 26px;
-    font-weight: 600;
-    line-height: 32px;
-}
-
-.algo-desc {
+.summary-label {
     color: #999;
-    font-size: 12px;
+    font-size: 13px;
+}
+
+.summary-value {
     margin-top: 8px;
+    color: #2d8cf0;
+    font-size: 24px;
+    font-weight: 600;
 }
 
 .chart-row {
     display: grid;
-    grid-template-columns: 1fr 520px;
+    grid-template-columns: 1fr 540px;
     gap: 20px;
 }
 
-.algorithm-chart {
-    height: 245px;
+.predict-chart {
+    height: 265px;
     border: 1px solid #e6e9ef;
     border-radius: 5px;
 }
 
 .sample-box {
-    height: 245px;
+    height: 265px;
     border: 1px solid #e6e9ef;
     border-radius: 5px;
     overflow: hidden;
