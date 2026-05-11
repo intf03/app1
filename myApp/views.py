@@ -8,6 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from .models import Products, User
 from .utils import getScreenData
+from .utils.mlPredict import run_ml_prediction
 
 
 def _safe_positive_int(value, default):
@@ -87,6 +88,18 @@ def screenData(request):
         })
     except Exception as e:
         return JsonResponse({'code': 500, 'msg': str(e)}, status=500)
+
+
+def mlPredict(request):
+    """机器学习销量预测接口：使用 scikit-learn 训练回归模型并返回预测结果。"""
+    if request.method != 'GET':
+        return JsonResponse({'code': 405, 'msg': 'method not allowed'}, status=405)
+    try:
+        result = run_ml_prediction(request.GET)
+        status = 200 if result.get('code') == 0 else 400
+        return JsonResponse(result, status=status)
+    except Exception as e:
+        return JsonResponse({'code': 500, 'msg': str(e), 'data': {}}, status=500)
 
 
 @csrf_exempt
@@ -172,7 +185,7 @@ def productList(request):
     try:
         page = _safe_positive_int(request.GET.get('page'), 1)
         page_size = _safe_positive_int(request.GET.get('pageSize'), 10)
-        page_size = min(page_size, 100)
+        page_size = min(page_size, 10000)
         keyword = (request.GET.get('keyword') or '').strip()
         product_type = (request.GET.get('type') or '').strip()
         address = (request.GET.get('address') or '').strip()
