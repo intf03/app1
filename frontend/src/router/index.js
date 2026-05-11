@@ -68,11 +68,35 @@ export const asyncRoutes = {
         meta: { title: '词云图', wordType: 'product' },
         component: () => import('../views/WordCloudView.vue'),
     },
+    linearPredict: {
+        path: 'linear-predict',
+        name: 'linearPredict',
+        meta: { title: '线性回归预测', algorithm: 'linear' },
+        component: () => import('../views/SalesPredict.vue'),
+    },
+    knnPredict: {
+        path: 'knn-predict',
+        name: 'knnPredict',
+        meta: { title: 'KNN近邻预测', algorithm: 'knn' },
+        component: () => import('../views/SalesPredict.vue'),
+    },
+    weightedPredict: {
+        path: 'weighted-predict',
+        name: 'weightedPredict',
+        meta: { title: '相似度加权预测', algorithm: 'weighted' },
+        component: () => import('../views/SalesPredict.vue'),
+    },
+    treePredict: {
+        path: 'tree-predict',
+        name: 'treePredict',
+        meta: { title: '分组决策树预测', algorithm: 'tree' },
+        component: () => import('../views/SalesPredict.vue'),
+    },
     salesPredict: {
         path: 'sales-predict',
         name: 'salesPredict',
-        meta: { title: '销量预测' },
-        component: () => import('../views/Home.vue'),
+        meta: { title: '线性回归预测', algorithm: 'linear' },
+        component: () => import('../views/SalesPredict.vue'),
     },
     dataSource: {
         path: 'data-source',
