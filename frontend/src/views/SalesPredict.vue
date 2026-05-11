@@ -46,24 +46,40 @@
         </div>
 
         <div class="section-card data-card">
-            <div class="section-title">▣ 数据</div>
+            <div class="section-title">▣ 机器学习销量预测结果</div>
             <div class="predict-shell">
-                <div class="predict-title">▣ {{ currentAlgorithm.title }}情况</div>
+                <div class="predict-title">▣ {{ algorithmName }}情况</div>
                 <div class="predict-main">
                     <div class="result-panel">
                         <div class="main-result">销量： {{ formatDecimal(predictionValue) }}</div>
-                        <div class="algorithm-name">{{ currentAlgorithm.title }}</div>
-                        <div class="result-desc">{{ currentAlgorithm.desc }}</div>
+                        <div class="algorithm-name">{{ modelName }}</div>
+                        <div class="result-desc">{{ modelDescription }}</div>
                     </div>
 
                     <div class="summary-grid">
                         <div class="summary-card">
-                            <div class="summary-label">训练样本</div>
-                            <div class="summary-value">{{ trainData.length }}</div>
+                            <div class="summary-label">有效样本</div>
+                            <div class="summary-value">{{ sampleCount }}</div>
                         </div>
                         <div class="summary-card">
-                            <div class="summary-label">参考样本</div>
-                            <div class="summary-value">{{ availableRecords.length }}</div>
+                            <div class="summary-label">训练样本</div>
+                            <div class="summary-value">{{ trainCount }}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-label">测试样本</div>
+                            <div class="summary-value">{{ testCount }}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-label">MAE</div>
+                            <div class="summary-value">{{ formatDecimal(metrics.mae) }}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-label">RMSE</div>
+                            <div class="summary-value">{{ formatDecimal(metrics.rmse) }}</div>
+                        </div>
+                        <div class="summary-card">
+                            <div class="summary-label">R²</div>
+                            <div class="summary-value">{{ formatMetric(metrics.r2) }}</div>
                         </div>
                         <div class="summary-card">
                             <div class="summary-label">历史均值</div>
@@ -71,7 +87,7 @@
                         </div>
                         <div class="summary-card">
                             <div class="summary-label">价格输入</div>
-                            <div class="summary-value">{{ formatDecimal(toNumber(query.price)) }}</div>
+                            <div class="summary-value">{{ formatDecimal(query.price) }}</div>
                         </div>
                     </div>
 
@@ -97,23 +113,28 @@
 const ALGORITHM_MAP = {
     linear: {
         title: '线性回归预测',
-        desc: '根据历史商品价格与销量之间的线性关系，估算当前输入商品的销量。',
-        chartTitle: '价格-销量线性趋势',
+        desc: '使用 scikit-learn LinearRegression，根据商品价格、类型、地址和包邮状态训练回归模型。',
+        chartTitle: '价格-销量预测趋势',
     },
     knn: {
-        title: 'KNN近邻预测',
-        desc: '寻找与当前商品在类型、价格、地址、包邮情况上最相似的商品，按近邻销量加权估算。',
+        title: 'KNN近邻回归预测',
+        desc: '使用 scikit-learn KNeighborsRegressor，基于相似商品样本估算销量。',
         chartTitle: '近邻商品销量参考',
     },
     weighted: {
-        title: '相似度加权预测',
-        desc: '对所有历史商品按相似度计算权重，权重越高的商品对预测销量影响越大。',
-        chartTitle: '相似度权重分布',
+        title: '相似度加权回归预测',
+        desc: '使用相似度样本权重训练加权线性回归模型，距离越近的样本权重越高。',
+        chartTitle: '相似样本权重与销量',
     },
     tree: {
-        title: '分组决策树预测',
-        desc: '按照产品类型、地址和包邮情况逐层分组，取最匹配分组的历史销量均值。',
-        chartTitle: '分组层级预测',
+        title: '决策树回归预测',
+        desc: '使用 scikit-learn DecisionTreeRegressor 学习商品特征与销量之间的非线性关系。',
+        chartTitle: '分组样本销量均值',
+    },
+    forest: {
+        title: '随机森林回归预测',
+        desc: '使用 scikit-learn RandomForestRegressor 进行集成回归预测。',
+        chartTitle: '分组样本销量均值',
     },
 }
 
@@ -123,20 +144,28 @@ export default {
         return {
             loading: false,
             chart: null,
-            rawProducts: [],
-            trainData: [],
             typeList: [],
             addressList: [],
             predictionValue: 0,
             historyAverage: 0,
-            availableRecords: [],
+            sampleCount: 0,
+            trainCount: 0,
+            testCount: 0,
+            algorithmName: '机器学习预测',
+            modelName: 'scikit-learn',
+            modelDescription: '基于商品样本训练回归模型，对输入商品销量进行辅助预测。',
+            metrics: {
+                mae: 0,
+                rmse: 0,
+                r2: 0,
+            },
             similarSamples: [],
             chartData: [],
             query: {
-                type: '服装',
+                type: '',
                 price: '200',
-                address: '广东',
-                delivery: '0',
+                address: '',
+                delivery: '',
             },
             deliveryOptions: [
                 { label: '不限', value: '' },
@@ -144,12 +173,7 @@ export default {
                 { label: '不包邮', value: '0' },
             ],
             sampleColumns: [
-                {
-                    title: '商品类型',
-                    key: 'type',
-                    width: 90,
-                    align: 'center',
-                },
+                { title: '商品类型', key: 'type', width: 90, align: 'center' },
                 {
                     title: '价格',
                     key: 'price',
@@ -157,18 +181,8 @@ export default {
                     align: 'center',
                     render: (h, params) => h('span', this.formatDecimal(params.row.price)),
                 },
-                {
-                    title: '地址',
-                    key: 'address',
-                    width: 85,
-                    align: 'center',
-                },
-                {
-                    title: '包邮',
-                    key: 'deliveryText',
-                    width: 70,
-                    align: 'center',
-                },
+                { title: '地址', key: 'address', width: 85, align: 'center' },
+                { title: '包邮', key: 'deliveryText', width: 70, align: 'center' },
                 {
                     title: '销量',
                     key: 'sales',
@@ -177,11 +191,13 @@ export default {
                     render: (h, params) => h('span', this.formatDecimal(params.row.sales)),
                 },
                 {
-                    title: '商品名',
-                    key: 'title',
-                    minWidth: 180,
-                    tooltip: true,
+                    title: '相似度权重',
+                    key: 'weight',
+                    width: 105,
+                    align: 'center',
+                    render: (h, params) => h('span', this.formatMetric(params.row.weight)),
                 },
+                { title: '商品名', key: 'title', minWidth: 180, tooltip: true },
             ],
         }
     },
@@ -195,12 +211,12 @@ export default {
     },
     watch: {
         '$route.name'() {
-            this.runPrediction()
+            this.handlePredict()
         },
     },
     mounted() {
         window.addEventListener('resize', this.resizeChart)
-        this.fetchData()
+        this.handlePredict()
     },
     beforeDestroy() {
         window.removeEventListener('resize', this.resizeChart)
@@ -210,189 +226,48 @@ export default {
         }
     },
     methods: {
-        async fetchData() {
+        async handlePredict() {
             this.loading = true
             try {
-                const res = await this.$http.get('myApp/productList', {
+                const res = await this.$http.get('myApp/mlPredict', {
                     params: {
-                        page: 1,
-                        pageSize: 10000,
+                        algorithm: this.algorithmType,
+                        type: this.query.type,
+                        price: this.query.price,
+                        address: this.query.address,
+                        delivery: this.query.delivery,
                     },
                 })
                 const body = res.data || res
-                this.rawProducts = Array.isArray(body.data) ? body.data : []
-                this.trainData = this.rawProducts.map(this.normalizeProduct).filter(item => item.sales > 0)
-                this.typeList = body.typeList || this.getUniqueList(this.trainData, 'type')
-                this.addressList = body.addressList || this.getUniqueList(this.trainData, 'address')
-                this.setDefaultQuery()
-                this.runPrediction()
+                if (body.code !== 0) {
+                    this.$Message.warning(body.msg || '机器学习预测失败')
+                    return
+                }
+                const data = body.data || {}
+                this.typeList = data.typeList || []
+                this.addressList = data.addressList || []
+                if (!this.query.type && data.input && data.input.type) this.query.type = data.input.type
+                if (!this.query.address && data.input && data.input.address) this.query.address = data.input.address
+                if (data.input && data.input.price) this.query.price = String(data.input.price)
+                if (data.input && data.input.delivery !== undefined) this.query.delivery = data.input.delivery
+
+                this.predictionValue = data.predictionValue || 0
+                this.historyAverage = data.historyAverage || 0
+                this.sampleCount = data.sampleCount || 0
+                this.trainCount = data.trainCount || 0
+                this.testCount = data.testCount || 0
+                this.algorithmName = data.algorithmName || this.currentAlgorithm.title
+                this.modelName = data.modelName || 'scikit-learn'
+                this.modelDescription = data.modelDescription || this.currentAlgorithm.desc
+                this.metrics = data.metrics || { mae: 0, rmse: 0, r2: 0 }
+                this.similarSamples = data.similarSamples || []
+                this.chartData = data.chartData || []
+                this.drawChart()
             } catch (e) {
-                this.$Message.error('销量预测数据接口请求失败')
-                this.trainData = []
-                this.predictionValue = 0
-                this.availableRecords = []
-                this.similarSamples = []
+                this.$Message.error('机器学习预测接口请求失败')
             } finally {
                 this.loading = false
             }
-        },
-        handlePredict() {
-            if (!this.trainData.length) {
-                this.$Message.warning('暂无可用于预测的商品数据')
-                return
-            }
-            this.runPrediction()
-        },
-        runPrediction() {
-            if (!this.trainData.length) return
-            const input = this.getInput()
-            const records = this.getAvailableRecords(input)
-            this.availableRecords = records
-            this.historyAverage = this.average(records, 'sales')
-
-            if (this.algorithmType === 'knn') {
-                this.predictionValue = this.knnPredict(records, input)
-                this.chartData = this.getSimilarSamples(records, input).map((item, index) => ({ name: '近邻' + (index + 1), value: item.sales }))
-            } else if (this.algorithmType === 'weighted') {
-                this.predictionValue = this.weightedSimilarityPredict(records, input)
-                this.chartData = this.getWeightedChartData(records, input)
-            } else if (this.algorithmType === 'tree') {
-                const treeResult = this.groupDecisionPredict(input)
-                this.predictionValue = treeResult.value
-                this.chartData = treeResult.levels
-            } else {
-                const linearResult = this.linearRegressionPredict(records, input)
-                this.predictionValue = linearResult.value
-                this.chartData = linearResult.points
-            }
-
-            this.similarSamples = this.getSimilarSamples(records, input)
-            this.drawChart()
-        },
-        getInput() {
-            return {
-                type: this.query.type || '',
-                price: this.toNumber(this.query.price),
-                address: this.query.address || '',
-                delivery: this.query.delivery,
-            }
-        },
-        getAvailableRecords(input) {
-            const strict = this.trainData.filter(item => {
-                const typeOk = !input.type || item.type === input.type
-                const addressOk = !input.address || item.address === input.address
-                const deliveryOk = input.delivery === '' || item.delivery === input.delivery
-                return typeOk && addressOk && deliveryOk
-            })
-            if (strict.length >= 3) return strict
-
-            const medium = this.trainData.filter(item => {
-                const typeOk = !input.type || item.type === input.type
-                const deliveryOk = input.delivery === '' || item.delivery === input.delivery
-                return typeOk && deliveryOk
-            })
-            if (medium.length >= 3) return medium
-
-            return this.trainData.slice()
-        },
-        linearRegressionPredict(records, input) {
-            if (!records.length) return { value: 0, points: [] }
-            const usable = records.filter(item => item.price > 0 && item.sales > 0)
-            if (usable.length < 2) {
-                return {
-                    value: this.average(records, 'sales'),
-                    points: records.slice(0, 10).map(item => ({ name: this.formatDecimal(item.price), value: item.sales })),
-                }
-            }
-
-            const xAvg = this.average(usable, 'price')
-            const yAvg = this.average(usable, 'sales')
-            let numerator = 0
-            let denominator = 0
-            usable.forEach(item => {
-                numerator += (item.price - xAvg) * (item.sales - yAvg)
-                denominator += Math.pow(item.price - xAvg, 2)
-            })
-            if (!denominator) {
-                return { value: yAvg, points: usable.slice(0, 10).map(item => ({ name: this.formatDecimal(item.price), value: item.sales })) }
-            }
-            const slope = numerator / denominator
-            const intercept = yAvg - slope * xAvg
-            const predicted = this.clampPrediction(intercept + slope * input.price)
-            const points = usable.sort((a, b) => a.price - b.price).slice(0, 12).map(item => ({
-                name: this.formatDecimal(item.price),
-                value: item.sales,
-            }))
-            points.push({ name: '预测价' + this.formatDecimal(input.price), value: predicted })
-            return { value: predicted, points }
-        },
-        knnPredict(records, input) {
-            const nearest = this.getSimilarSamples(records, input)
-            if (!nearest.length) return 0
-            let totalWeight = 0
-            let totalValue = 0
-            nearest.forEach(item => {
-                const weight = 1 / (item.distance + 0.08)
-                totalWeight += weight
-                totalValue += item.sales * weight
-            })
-            return this.clampPrediction(totalValue / Math.max(totalWeight, 1))
-        },
-        weightedSimilarityPredict(records, input) {
-            if (!records.length) return 0
-            let totalWeight = 0
-            let totalValue = 0
-            records.forEach(item => {
-                const distance = this.calcDistance(item, input)
-                const weight = Math.exp(-distance * 1.5)
-                totalWeight += weight
-                totalValue += item.sales * weight
-            })
-            return this.clampPrediction(totalValue / Math.max(totalWeight, 1))
-        },
-        groupDecisionPredict(input) {
-            const groups = [
-                { name: '类型+地址+包邮', filter: item => item.type === input.type && item.address === input.address && item.delivery === input.delivery },
-                { name: '类型+地址', filter: item => item.type === input.type && item.address === input.address },
-                { name: '类型+包邮', filter: item => item.type === input.type && item.delivery === input.delivery },
-                { name: '产品类型', filter: item => item.type === input.type },
-                { name: '产品地址', filter: item => item.address === input.address },
-                { name: '全部样本', filter: () => true },
-            ]
-            const levels = []
-            let result = 0
-            for (let i = 0; i < groups.length; i++) {
-                const matched = this.trainData.filter(groups[i].filter)
-                const avg = this.average(matched, 'sales')
-                levels.push({ name: groups[i].name, value: avg, count: matched.length })
-                if (!result && matched.length >= 3) result = avg
-            }
-            return {
-                value: this.clampPrediction(result || this.average(this.trainData, 'sales')),
-                levels,
-            }
-        },
-        getSimilarSamples(records, input) {
-            return records.map(item => ({
-                ...item,
-                distance: this.calcDistance(item, input),
-            })).sort((a, b) => a.distance - b.distance).slice(0, 8)
-        },
-        getWeightedChartData(records, input) {
-            return this.getSimilarSamples(records, input).map((item, index) => ({
-                name: '样本' + (index + 1),
-                value: Number((Math.exp(-item.distance * 1.5) * 100).toFixed(2)),
-                sales: item.sales,
-            }))
-        },
-        calcDistance(item, input) {
-            const priceList = this.trainData.map(row => row.price || 0).concat([input.price, 1])
-            const maxPrice = Math.max.apply(null, priceList)
-            const priceDistance = Math.abs((item.price || 0) - input.price) / Math.max(maxPrice, 1)
-            const typeDistance = input.type && item.type !== input.type ? 0.9 : 0
-            const addressDistance = input.address && item.address !== input.address ? 0.65 : 0
-            const deliveryDistance = input.delivery !== '' && item.delivery !== input.delivery ? 0.45 : 0
-            return priceDistance + typeDistance + addressDistance + deliveryDistance
         },
         drawChart() {
             this.$nextTick(() => {
@@ -401,7 +276,7 @@ export default {
 
                 const names = this.chartData.map(item => item.name)
                 const values = this.chartData.map(item => Number(this.formatDecimal(item.value)))
-                const isLine = this.algorithmType === 'linear'
+                const isLine = this.algorithmType === 'linear' || this.algorithmType === 'weighted'
 
                 this.chart.setOption({
                     backgroundColor: '#fff',
@@ -428,13 +303,13 @@ export default {
                     },
                     yAxis: {
                         type: 'value',
-                        name: this.algorithmType === 'weighted' ? '权重' : '销量',
+                        name: '销量',
                         axisLabel: { color: '#666' },
                         splitLine: { lineStyle: { color: '#e6e9ef' } },
                     },
                     series: [
                         {
-                            name: this.algorithmType === 'weighted' ? '相似权重' : '销量',
+                            name: '销量',
                             type: isLine ? 'line' : 'bar',
                             smooth: isLine,
                             barWidth: 36,
@@ -453,54 +328,19 @@ export default {
         resizeChart() {
             if (this.chart) this.chart.resize()
         },
-        normalizeProduct(row) {
-            const delivery = this.normalizeDelivery(row.isFreeDelivery)
-            return {
-                title: row.title || row.productName || row.name || '',
-                type: String(row.type || '').trim(),
-                price: this.toNumber(row.price || row.product_price || row.sale_price),
-                address: String(row.address || row.province || row.city || '').trim(),
-                delivery,
-                deliveryText: delivery === '1' ? '包邮' : (delivery === '0' ? '不包邮' : '不限'),
-                sales: this.toNumber(row.buy_len || row.sales || row.sale_num || row.num || row.count),
-            }
-        },
-        normalizeDelivery(value) {
-            if (value === 1 || value === '1' || value === true || value === 'true' || value === '包邮') return '1'
-            if (value === 0 || value === '0' || value === false || value === 'false' || value === '不包邮') return '0'
-            return ''
-        },
-        setDefaultQuery() {
-            if (this.typeList.indexOf('服装') === -1 && this.typeList.length) this.query.type = this.typeList[0]
-            if (this.addressList.indexOf('广东') === -1 && this.addressList.length) this.query.address = this.addressList[0]
-            if (!this.query.price) this.query.price = '200'
-        },
-        getUniqueList(list, key) {
-            return Array.from(new Set((list || []).map(item => item && item[key]).filter(Boolean)))
-        },
-        average(list, key) {
-            if (!list || !list.length) return 0
-            const sum = list.reduce((total, item) => total + this.toNumber(item[key]), 0)
-            return sum / list.length
-        },
-        toNumber(value) {
-            if (value === null || value === undefined || value === '') return 0
-            const text = String(value).replace(/,/g, '').replace(/￥|元/g, '').trim()
-            if (text.indexOf('万') !== -1) return Number(text.replace('万', '')) * 10000 || 0
-            return Number(text) || 0
-        },
         safeNumber(value) {
-            if (!isFinite(value) || isNaN(value)) return 0
-            return Math.max(0, value)
-        },
-        clampPrediction(value) {
-            const safe = this.safeNumber(value)
-            const maxSales = Math.max.apply(null, this.trainData.map(item => item.sales || 0).concat([safe, 1]))
-            return Math.min(safe, maxSales * 1.25)
+            const num = Number(value)
+            if (!isFinite(num) || isNaN(num)) return 0
+            return Math.max(0, num)
         },
         formatDecimal(value) {
-            const num = this.safeNumber(Number(value))
+            const num = this.safeNumber(value)
             return Number(num.toFixed(1))
+        },
+        formatMetric(value) {
+            const num = Number(value)
+            if (!isFinite(num) || isNaN(num)) return 0
+            return Number(num.toFixed(4))
         },
     },
 }
@@ -593,11 +433,12 @@ export default {
 }
 
 .result-panel {
-    height: 130px;
+    min-height: 138px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    text-align: center;
 }
 
 .main-result {
@@ -614,9 +455,11 @@ export default {
 }
 
 .result-desc {
+    max-width: 920px;
     margin-top: 8px;
     color: #999;
     font-size: 14px;
+    line-height: 22px;
 }
 
 .summary-grid {
@@ -647,7 +490,7 @@ export default {
 
 .chart-row {
     display: grid;
-    grid-template-columns: 1fr 540px;
+    grid-template-columns: 1fr 620px;
     gap: 20px;
 }
 
