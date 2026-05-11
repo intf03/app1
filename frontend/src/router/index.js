@@ -48,7 +48,7 @@ export const asyncRoutes = {
         path: 'mail-map',
         name: 'mailMap',
         meta: { title: '邮寄分布图' },
-        component: () => import('../views/Home.vue'),
+        component: () => import('../views/MailMap.vue'),
     },
     wordCloud: {
         path: 'word-cloud',
