@@ -50,11 +50,23 @@ export const asyncRoutes = {
         meta: { title: '邮寄分布图' },
         component: () => import('../views/MailMap.vue'),
     },
+    productWordCloud: {
+        path: 'product-word-cloud',
+        name: 'productWordCloud',
+        meta: { title: '商品词云图', wordType: 'product' },
+        component: () => import('../views/WordCloudView.vue'),
+    },
+    addressWordCloud: {
+        path: 'address-word-cloud',
+        name: 'addressWordCloud',
+        meta: { title: '地址词云图', wordType: 'address' },
+        component: () => import('../views/WordCloudView.vue'),
+    },
     wordCloud: {
         path: 'word-cloud',
         name: 'wordCloud',
-        meta: { title: '词云图' },
-        component: () => import('../views/Home.vue'),
+        meta: { title: '词云图', wordType: 'product' },
+        component: () => import('../views/WordCloudView.vue'),
     },
     salesPredict: {
         path: 'sales-predict',
