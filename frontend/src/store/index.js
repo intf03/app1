@@ -51,10 +51,35 @@ const store = new Vuex.Store({
                 ],
             },
             {
-                name: 'salesPredict',
                 size: 18,
                 type: 'ios-trending-up',
                 text: '销量预测',
+                children: [
+                    {
+                        name: 'linearPredict',
+                        size: 18,
+                        type: 'ios-pulse-outline',
+                        text: '线性回归预测',
+                    },
+                    {
+                        name: 'knnPredict',
+                        size: 18,
+                        type: 'ios-git-network',
+                        text: 'KNN近邻预测',
+                    },
+                    {
+                        name: 'weightedPredict',
+                        size: 18,
+                        type: 'ios-options-outline',
+                        text: '相似度加权预测',
+                    },
+                    {
+                        name: 'treePredict',
+                        size: 18,
+                        type: 'ios-git-branch',
+                        text: '分组决策树预测',
+                    },
+                ],
             },
             {
                 name: 'dataSource',
