@@ -32,10 +32,23 @@ const store = new Vuex.Store({
                 text: '邮寄分布图',
             },
             {
-                name: 'wordCloud',
                 size: 18,
                 type: 'ios-cloud-outline',
                 text: '词云图',
+                children: [
+                    {
+                        name: 'productWordCloud',
+                        size: 18,
+                        type: 'ios-leaf',
+                        text: '商品词云图',
+                    },
+                    {
+                        name: 'addressWordCloud',
+                        size: 18,
+                        type: 'ios-heart-outline',
+                        text: '地址词云图',
+                    },
+                ],
             },
             {
                 name: 'salesPredict',
