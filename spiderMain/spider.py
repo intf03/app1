@@ -9,6 +9,7 @@ import os
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException, WebDriverException
 
 
 def spider_fn(key):
@@ -79,6 +80,31 @@ def spider_fn(key):
             return int(match.group())
         return 0
 
+    def find_next_button():
+        """尽量兼容淘宝翻页按钮变化，找不到时返回 None，避免打印 Selenium Stacktrace。"""
+        candidate_xpaths = [
+            '//*[@id="search-content-leftWrap"]//button[.//span[contains(text(), "下一页")] or contains(normalize-space(.), "下一页")]',
+            '//*[@id="search-content-leftWrap"]//button[contains(@aria-label, "下一页")]',
+            '//button[.//span[contains(text(), "下一页")] or contains(normalize-space(.), "下一页")]',
+            '//button[contains(@aria-label, "下一页")]',
+        ]
+
+        for xpath in candidate_xpaths:
+            buttons = broswer.find_elements(By.XPATH, xpath)
+            for button in buttons:
+                try:
+                    if button.is_displayed():
+                        return button
+                except WebDriverException:
+                    continue
+        return None
+
+    def is_button_disabled(button):
+        class_name = button.get_attribute('class') or ''
+        disabled_attr = button.get_attribute('disabled')
+        aria_disabled = button.get_attribute('aria-disabled')
+        return bool(disabled_attr) or aria_disabled == 'true' or 'disabled' in class_name.lower()
+
     def get_product(count):
         total = count
         page_count = 0                # 已翻页次数（已处理页数）
@@ -127,7 +153,7 @@ def spider_fn(key):
 
                 except Exception as e:
                     total = total - 1
-                    print(f"提取商品失败: {e}")
+                    print(f"提取商品失败，已跳过当前商品：{type(e).__name__}")
                     continue
 
             # 本页提取完成，打印提示
@@ -140,22 +166,30 @@ def spider_fn(key):
                 print(f"已达到最大页数 {max_pages}，抓取结束")
                 break
 
-            # 尝试翻到下一页
+            # 尝试翻到下一页：找不到按钮时只打印简短提示，不再输出 Selenium Stacktrace
             try:
-                next_btn = broswer.find_element(By.XPATH, '//*[@id="search-content-leftWrap"]/div[3]/div[6]/div/div/button[2]')
-                if "disabled" in next_btn.get_attribute("class"):
-                    print("已是最后一页，抓取结束")
+                next_btn = find_next_button()
+                if next_btn is None:
+                    print("没有找到下一页按钮，可能已到最后一页或页面结构发生变化，抓取结束")
                     break
-                else:
-                    broswer.execute_script("arguments[0].scrollIntoView();", next_btn)
-                    time.sleep(1)
+
+                if is_button_disabled(next_btn):
+                    print("下一页按钮不可用，已是最后一页，抓取结束")
+                    break
+
+                broswer.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_btn)
+                time.sleep(1)
+                try:
                     next_btn.click()
-                    print(f"正在翻页到第 {page_count + 1} 页...")
-                    time.sleep(5)
-                    scroll_to_load()  # 翻页后滚动加载新页面商品
-                    continue
-            except Exception as e:
-                print("没有找到下一页按钮或翻页失败，抓取结束", e)
+                except WebDriverException:
+                    broswer.execute_script("arguments[0].click();", next_btn)
+
+                print(f"正在翻页到第 {page_count + 1} 页...")
+                time.sleep(5)
+                scroll_to_load()  # 翻页后滚动加载新页面商品
+                continue
+            except Exception:
+                print("翻页失败，抓取结束")
                 break
 
     def main():
