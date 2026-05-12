@@ -13,6 +13,7 @@ from selenium.common.exceptions import NoSuchElementException, WebDriverExceptio
 
 
 def spider_fn(key):
+    batch_rows = []
 
     def init():
         if os.path.exists('./data.csv'):
@@ -119,7 +120,6 @@ def spider_fn(key):
 
             for div in items_to_extract:
                 try:
-                    total = total + 1
                     # 类型
                     product_type = key
                     # 商品名
@@ -145,20 +145,30 @@ def spider_fn(key):
                     href = div.find_element(By.XPATH, './/a[contains(@class, "doubleCardWrapperAdapt")]').get_attribute('href')
                     # 店铺详情
                     nameHref = div.find_element(By.XPATH, './/a[contains(@class, "shopName")]').get_attribute('href')
+
+                    total = total + 1
                     print(title)
                     save_to_csv(product_type, title, price, buy_len, img_src, name, address, isFreeDelivery, href, nameHref)
-                    # print(f"类型：{product_type}\n商品名：{title}\n价格：{price}\n销量: {buy_len}\n店铺：{name}\n地址: {address}\n包邮: {isFreeDelivery}\n商品图片：{img_src}\n详情链接：{href}\n店铺详情：{nameHref}")
+
+                    batch_rows.append([
+                        product_type, title, price, buy_len, img_src,
+                        name, address, isFreeDelivery, href, nameHref
+                    ])
+
+                    if len(batch_rows) >= 10:
+                        save_to_sql_batch(batch_rows)
+                        batch_rows.clear()
+
                     if total % 10 == 0:
-                        print('已爬取%d条数据了' % total)
+                        print('已爬取%d条数据了，并已写入MySQL' % total)
 
                 except Exception as e:
-                    total = total - 1
                     print(f"提取商品失败，已跳过当前商品：{e.__class__.__name__}")
                     continue
 
             # 本页提取完成，打印提示
             extracted_this_page = len(items_to_extract)
-            print(f"\n本页共提取 {extracted_this_page} 条数据，累计已提取 {total} 条")
+            print(f"\n本页共尝试提取 {extracted_this_page} 条数据，累计成功提取 {total} 条")
 
             # 翻页控制：每提取完一页（达到x条或不足x条）就尝试翻页
             page_count += 1
@@ -198,12 +208,27 @@ def spider_fn(key):
         search_product(key)
         scroll_to_load()
         get_product(count)
-        save_to_sql()
+
+        # 采集结束后，如果还有不足10条的数据，也写入数据库
+        if batch_rows:
+            save_to_sql_batch(batch_rows)
+            batch_rows.clear()
 
     def save_to_csv(product_type, title, price, buy_len, img_src, name, address, isFreeDelivery, href, nameHref):
         with open('./data.csv', 'a', encoding='utf-8', newline='') as f:
             myWriter = csv.writer(f, dialect='excel', delimiter=',')
             myWriter.writerow([product_type, title, price, buy_len, img_src, name, address, isFreeDelivery, href, nameHref])
+
+    def save_to_sql_batch(rows):
+        columns = [
+            'type', 'title', 'price', 'buy_len', 'img_src',
+            'name', 'address', 'isFreeDelivery', 'href', 'nameHref'
+        ]
+        df = pd.DataFrame(rows, columns=columns)
+        df = df_clean(df)
+        conn = create_engine('mysql+pymysql://root:root@localhost:3306/commodity_data?charset=utf8')
+        df.to_sql('products', con=conn, index=False, if_exists='append')
+        print(f"已成功导入数据库，本批次共{len(rows)}条数据")
 
     def save_to_sql():
         products = pd.read_csv('./data.csv')
