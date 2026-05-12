@@ -121,7 +121,7 @@ def spider_fn(key):
                 try:
                     total = total + 1
                     # 类型
-                    type = key
+                    product_type = key
                     # 商品名
                     title = div.find_element(By.XPATH, './/div[contains(@class, "title")]/span').text
                     # 价格
@@ -146,14 +146,14 @@ def spider_fn(key):
                     # 店铺详情
                     nameHref = div.find_element(By.XPATH, './/a[contains(@class, "shopName")]').get_attribute('href')
                     print(title)
-                    save_to_csv(type, title, price, buy_len, img_src, name, address, isFreeDelivery, href, nameHref)
-                    # print(f"类型：{type}\n商品名：{title}\n价格：{price}\n销量: {buy_len}\n店铺：{name}\n地址: {address}\n包邮: {isFreeDelivery}\n商品图片：{img_src}\n详情链接：{href}\n店铺详情：{nameHref}")
+                    save_to_csv(product_type, title, price, buy_len, img_src, name, address, isFreeDelivery, href, nameHref)
+                    # print(f"类型：{product_type}\n商品名：{title}\n价格：{price}\n销量: {buy_len}\n店铺：{name}\n地址: {address}\n包邮: {isFreeDelivery}\n商品图片：{img_src}\n详情链接：{href}\n店铺详情：{nameHref}")
                     if total % 10 == 0:
                         print('已爬取%d条数据了' % total)
 
                 except Exception as e:
                     total = total - 1
-                    print(f"提取商品失败，已跳过当前商品：{type(e).__name__}")
+                    print(f"提取商品失败，已跳过当前商品：{e.__class__.__name__}")
                     continue
 
             # 本页提取完成，打印提示
@@ -200,10 +200,10 @@ def spider_fn(key):
         get_product(count)
         save_to_sql()
 
-    def save_to_csv(type, title, price, buy_len, img_src, name, address, isFreeDelivery, href, nameHref):
+    def save_to_csv(product_type, title, price, buy_len, img_src, name, address, isFreeDelivery, href, nameHref):
         with open('./data.csv', 'a', encoding='utf-8', newline='') as f:
             myWriter = csv.writer(f, dialect='excel', delimiter=',')
-            myWriter.writerow([type, title, price, buy_len, img_src, name, address, isFreeDelivery, href, nameHref])
+            myWriter.writerow([product_type, title, price, buy_len, img_src, name, address, isFreeDelivery, href, nameHref])
 
     def save_to_sql():
         products = pd.read_csv('./data.csv')
